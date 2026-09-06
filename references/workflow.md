@@ -21,7 +21,7 @@ W export --batch ID
 W render --batch ID
 ```
 
-`doctor` 是无状态、只读预检，不创建状态目录或批次；它检查 ncm-cli 可执行文件、AppId、PrivateKey 和网易云登录。保存任务开始前以及用户完成配置后调用；状态不是 ready 时按[保存前预检](netease-save.md#保存前预检)引导，不进入搜索或写入。
+`doctor` 是无状态、只读预检，不创建状态目录或批次；它检查 ncm-cli 可执行文件、AppId、PrivateKey 和网易云登录。正式流程开始前以及用户完成配置后调用；状态不是 ready 时按[启动前依赖预检](setup.md)引导，不进入搜索或写入。
 
 `new` 默认 `--mode recommend`；只有用户明确要求网易云存满数量才用 `--mode save`。用户只要推荐时不调用 search/export。测试先用 mktemp -d 建立独立目录，再 `W --root 该目录 new --genre ... --count ... --test`；export 对测试批次拒绝写入。
 

@@ -1,5 +1,11 @@
 # 2026-09-06 验证记录
 
+## Spotify 与 ncm-cli 统一启动预检
+
+将 Spotify 插件和 ncm-cli 的依赖处理集中到 `references/setup.md`，并要求在询问风格／数量、创建或恢复批次之前完成。Spotify 插件以当前会话中存在明确属于 Spotify 且支持搜索／推荐的可调用工具为准，不把本机 Spotify 客户端或网页访问当成插件；缺失时分别给出桌面／网页插件目录和 Codex CLI `/plugins` 引导，并提醒安装后开启新会话。IDE 扩展不支持插件时引导改用桌面端 Codex 或 CLI。
+
+ncm-cli 的 doctor、安装、AppId／PrivateKey 和登录引导一并移动到统一预检；本次明确仅推荐时可跳过 ncm-cli，但不能跳过 Spotify。当前会话工具清单已确认 Spotify 搜索能力来自 `Spotify` 插件；OpenAI 官方插件文档已核对安装、连接和新会话要求。代码未变更，40项离线回归与技能格式校验继续通过。
+
 ## ncm-cli 配置预检与引导
 
 新增无状态、只读的 `workflow.py doctor`：分别报告 ncm-cli 缺失、无法执行、AppId／PrivateKey 缺失、未登录和 ready。返回内容不包含配置值或网易云账户 ID；缺少凭据时只返回占位命令和开放平台申请地址。主流程仅在需要网易云匹配或保存时预检，只推荐模式跳过；未就绪时保留已有批次并引导配置，复检 ready 后才继续。
