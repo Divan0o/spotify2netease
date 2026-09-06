@@ -93,7 +93,7 @@ class Store:
                             raise ValueError('Malformed legacy history entry; migration cancelled')
                         history.append(dict(track={**t, 'artists': [s.strip() for s in t['artist'].split(',')]},
                                             batch_id='legacy', delivery='delivered', saved=None, active=True))
-                state = dict(version=2, history=history, batches={}, migrated_at=now(), rejection_cache={})
+                state = dict(version=2, history=history, batches={}, migrated_at=now(), rejection_cache={}, setup={})
                 db.execute('INSERT INTO state VALUES (1, ?)', (json.dumps(state, ensure_ascii=False),))
 
     def connect(self):
@@ -119,6 +119,35 @@ class Store:
     def read(self):
         with closing(self.connect()) as db:
             return json.loads(db.execute('SELECT payload FROM state WHERE id=1').fetchone()[0])
+
+    def setup_status(self):
+        setup = self.read().get('setup', {})
+        return {
+            component: {
+                'confirmed': bool((setup.get(component) or {}).get('confirmed_at')),
+                'confirmed_at': (setup.get(component) or {}).get('confirmed_at'),
+            }
+            for component in ('spotify', 'ncm')
+        }
+
+    def confirm_setup(self, component):
+        if component not in ('spotify', 'ncm'):
+            raise ValueError('Unknown setup component')
+        with self.transaction() as state:
+            setup = state.setdefault('setup', {})
+            setup[component] = {'confirmed_at': now()}
+        return self.setup_status()
+
+    def reset_setup(self, component):
+        if component not in ('spotify', 'ncm', 'all'):
+            raise ValueError('Unknown setup component')
+        with self.transaction() as state:
+            setup = state.setdefault('setup', {})
+            if component == 'all':
+                setup.clear()
+            else:
+                setup.pop(component, None)
+        return self.setup_status()
 
     def batch(self, bid):
         return self.read()['batches'][bid]

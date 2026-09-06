@@ -4,6 +4,10 @@
 
 ```text
 W doctor
+W doctor --remember
+W setup-status
+W setup-confirm --component spotify
+W setup-reset --component spotify|ncm|all
 W new --genre "baile funk" --count 10
 W plan --genre "baile funk"
 W plan --batch ID
@@ -21,7 +25,9 @@ W export --batch ID
 W render --batch ID
 ```
 
-`doctor` 是无状态、只读预检，不创建状态目录或批次；它检查 ncm-cli 可执行文件、AppId、PrivateKey 和网易云登录。正式流程开始前以及用户完成配置后调用；状态不是 ready 时按[启动前依赖预检](setup.md)引导，不进入搜索或写入。
+`setup-status` 只读本机缓存的依赖确认，不访问 Spotify 或调用 ncm-cli。组件已确认时正常任务不再外部检验。`setup-confirm` 仅在当前会话已确认 Spotify 工具可用时记录；`setup-reset` 用于实际依赖错误、配置变化或用户主动重检。
+
+`doctor` 是无状态、只读的 ncm-cli 检查，不创建状态目录或批次；`doctor --remember` 仅在 ready 时将 ncm 确认写入本机状态。它们只用于 ncm 首次配置与故障恢复，不在正常任务中重复运行。详见[首次配置与故障恢复](setup.md)。
 
 `new` 默认 `--mode recommend`；只有用户明确要求网易云存满数量才用 `--mode save`。用户只要推荐时不调用 search/export。测试先用 mktemp -d 建立独立目录，再 `W --root 该目录 new --genre ... --count ... --test`；export 对测试批次拒绝写入。
 

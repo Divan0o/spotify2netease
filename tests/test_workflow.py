@@ -143,6 +143,36 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(status['status'], 'ready')
         self.assertNotIn('account_id', status)
 
+    def test_setup_confirmations_persist_without_external_probe(self):
+        initial = self.store.setup_status()
+        self.assertFalse(initial['spotify']['confirmed'])
+        self.assertFalse(initial['ncm']['confirmed'])
+
+        self.store.confirm_setup('spotify')
+        self.store.confirm_setup('ncm')
+        persisted = Store(self.tmp.name).setup_status()
+
+        self.assertTrue(persisted['spotify']['confirmed'])
+        self.assertTrue(persisted['ncm']['confirmed'])
+        self.assertTrue(persisted['spotify']['confirmed_at'])
+        self.assertTrue(persisted['ncm']['confirmed_at'])
+
+    def test_setup_reset_is_scoped_and_supports_legacy_state(self):
+        self.store.confirm_setup('spotify')
+        self.store.confirm_setup('ncm')
+        after_spotify_reset = self.store.reset_setup('spotify')
+        self.assertFalse(after_spotify_reset['spotify']['confirmed'])
+        self.assertTrue(after_spotify_reset['ncm']['confirmed'])
+
+        with self.store.transaction() as state:
+            state.pop('setup', None)
+        legacy = Store(self.tmp.name)
+        self.assertFalse(legacy.setup_status()['spotify']['confirmed'])
+        self.assertTrue(legacy.confirm_setup('spotify')['spotify']['confirmed'])
+        cleared = legacy.reset_setup('all')
+        self.assertFalse(cleared['spotify']['confirmed'])
+        self.assertFalse(cleared['ncm']['confirmed'])
+
     def test_ten_track_end_to_end_and_reversed_readback(self):
         bid, es, client = self.ready()
         job = netease.export(self.store, bid, client)

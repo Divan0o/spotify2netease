@@ -8,7 +8,7 @@
 - 逐曲审查风格与艺人身份，避免只按标题误判
 - 使用 SQLite 保存批次、候选、去重历史和恢复状态
 - 将选中曲目匹配到网易云音乐并创建歌单
-- 正式运行前检测 Spotify 插件；需要保存时同时检测 `ncm-cli`、API 凭据和登录状态
+- 首次使用时确认 Spotify 插件；需要保存时首次确认 `ncm-cli`、API 凭据和登录状态，之后复用本地状态
 - 支持中断恢复、写入后对账和隔离测试
 
 ## 安装
@@ -34,9 +34,17 @@ git clone https://github.com/Divan0o/spotify2netease.git ~/.codex/skills/spotify
 - 保存到网易云需要 Node.js 18+ 和 `ncm-cli`；未安装或未配置时 skill 会给出引导
 - macOS 或 Linux（保存流程使用文件锁）
 
-## 启动前依赖引导
+## 首次配置与按需复检
 
-skill 正式运行前会先确认当前会话存在由 `Spotify` 插件提供的搜索工具。若不存在：
+skill 会先读取本地配置确认状态：
+
+```bash
+python3 scripts/workflow.py setup-status
+```
+
+这只是一次本地 SQLite 读取，不会访问 Spotify，也不会调用 `ncm-cli`。组件已确认后，正常推荐和保存不会重复枚举 Spotify 工具、检查凭据、探测登录或运行 doctor。
+
+Spotify 尚未确认时，skill 才会检查当前会话是否存在由 `Spotify` 插件提供的搜索工具。若不存在：
 
 - ChatGPT 网页端或 ChatGPT 桌面应用中的 Codex：打开“插件”，搜索并安装 `Spotify`，按提示连接账户。
 - Codex CLI：输入 `/plugins`，搜索并安装／启用 `Spotify`。
@@ -45,15 +53,29 @@ skill 正式运行前会先确认当前会话存在由 `Spotify` 插件提供的
 
 详细安装方式以 [OpenAI 官方插件文档](https://learn.chatgpt.com/zh-Hans/docs/plugins) 为准。本机安装了 Spotify 客户端并不代表插件已经可用。
 
-默认需要保存网易云，因此 Spotify 检查通过后还会运行只读的 ncm-cli 预检：
+首次确认插件可用后会记录状态：
 
 ```bash
-python3 scripts/workflow.py doctor
+python3 scripts/workflow.py setup-confirm --component spotify
+```
+
+默认需要保存网易云，因此 ncm 尚未确认时会运行一次只读预检并在 ready 后记录状态：
+
+```bash
+python3 scripts/workflow.py doctor --remember
 ```
 
 预检会区分 `missing`、`configuration_required`、`login_required`、`unavailable` 和 `ready`。未就绪时，skill 会根据状态引导安装、申请并设置 AppId/PrivateKey，或完成网易云登录；配置值和账户 ID 不会写入预检结果。本次明确只推荐、不保存时会跳过 ncm-cli，但不会跳过 Spotify 插件检查。
 
-PrivateKey 应由用户在自己的终端中设置，不要粘贴到聊天、日志或仓库。配置完成后再次运行 doctor，只有返回 `"ready": true` 才会继续网易云搜索和歌单写入。本 skill 不使用播放功能，因此无需安装 mpv。
+PrivateKey 应由用户在自己的终端中设置，不要粘贴到聊天、日志或仓库。配置完成后再次运行 `doctor --remember`，只有返回 `"ready": true` 才会继续网易云搜索和歌单写入。本 skill 不使用播放功能，因此无需安装 mpv。
+
+确认状态没有定时过期。只有真实调用出现依赖或鉴权错误、用户更换 Spotify／网易云账户或 API 配置、或者用户明确要求重检时，才重新检查对应组件：
+
+```bash
+python3 scripts/workflow.py setup-reset --component spotify
+python3 scripts/workflow.py setup-reset --component ncm
+python3 scripts/workflow.py setup-reset --component all
+```
 
 ## 使用
 

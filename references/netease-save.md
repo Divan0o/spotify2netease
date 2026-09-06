@@ -2,7 +2,7 @@
 
 读取 scripts/netease.py 的实际 CLI 契约；当前适配 ncm-cli 0.1.7。版本或结构变化时先读相应 --help 和只读结果，再修改适配；不要添加不支持的 --userInput。不需要播放器、队列或 mpv。
 
-安装与配置引导统一在[启动前依赖预检](setup.md)处理。若 ncm-cli 在批次执行中途失效，保留批次并回到该预检；`doctor` 再次返回 `ready: true` 后才恢复 search/export。
+首次安装与故障恢复统一在[配置与恢复](setup.md)处理。ncm 已确认时不要在每次保存前运行 doctor；直接 search/export。若 ncm-cli 在批次执行中途失效，保留批次，按故障恢复判断是否清除确认；重新 ready 后恢复。
 
 ## 匹配
 

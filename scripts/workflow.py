@@ -13,7 +13,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=DEFAULT_ROOT)
     sub = parser.add_subparsers(dest='command', required=True)
-    sub.add_parser('doctor', help='Read-only ncm-cli installation, credential, and login check')
+    p = sub.add_parser('doctor', help='ncm-cli readiness check; optionally remember success')
+    p.add_argument('--remember', action='store_true')
+    sub.add_parser('setup-status', help='Read cached dependency confirmations without external checks')
+    p = sub.add_parser('setup-confirm', help='Remember a verified dependency without rechecking it')
+    p.add_argument('--component', choices=['spotify'], required=True)
+    p = sub.add_parser('setup-reset', help='Forget cached readiness after a dependency or configuration change')
+    p.add_argument('--component', choices=['spotify', 'ncm', 'all'], required=True)
     p = sub.add_parser('new')
     p.add_argument('--genre', required=True)
     p.add_argument('--count', type=int, required=True)
@@ -43,9 +49,17 @@ def main():
     sub.add_parser('batches')
     args = parser.parse_args()
     c = args.command
-    store = None if c == 'doctor' else Store(args.root)
+    store = None if c == 'doctor' and not args.remember else Store(args.root)
     if c == 'doctor':
         result = netease.setup_status()
+        if args.remember and result['ready']:
+            result['cached_setup'] = store.confirm_setup('ncm')
+    elif c == 'setup-status':
+        result = store.setup_status()
+    elif c == 'setup-confirm':
+        result = store.confirm_setup(args.component)
+    elif c == 'setup-reset':
+        result = store.reset_setup(args.component)
     elif c == 'new':
         result = {'batch_id': store.new(args.genre, args.count, args.mode, args.test, args.name)}
     elif c == 'plan':
