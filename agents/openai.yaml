@@ -1,0 +1,4 @@
+interface:
+  display_name: "Spotify 风格推荐"
+  short_description: "使用 Spotify 按风格推荐、历史去重，并自动保存到网易云歌单"
+  default_prompt: "Use $spotify-genre-recommender to recommend a specified number of tracks from a genre without repeating prior recommendations and automatically save matched songs to a new NetEase playlist using ncm-cli."
