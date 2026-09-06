@@ -1,6 +1,20 @@
 # 网易云匹配与保存
 
-读取 scripts/netease.py 的实际 CLI 契约；当前适配 ncm-cli 0.1.7。首次任务检查 `ncm-cli --version`、`ncm-cli user info`，已检查可复用。版本或结构变化时先读相应 --help 和只读结果，再修改适配；不要添加不支持的 --userInput。不需要播放器、队列或 mpv。
+读取 scripts/netease.py 的实际 CLI 契约；当前适配 ncm-cli 0.1.7。版本或结构变化时先读相应 --help 和只读结果，再修改适配；不要添加不支持的 --userInput。不需要播放器、队列或 mpv。
+
+## 保存前预检
+
+需要网易云匹配或保存时，在新的 Spotify 发现开始前运行 `W doctor`。已有批次恢复时也先运行，但不能因未就绪而丢弃、重开或改写批次。仅推荐且明确不保存时跳过。
+
+按返回的 `status` 处理：
+
+- `ready`：可以继续 search/export。
+- `missing`：说明需要 Node.js 18+，引导用户运行返回的安装和版本验证命令。若环境已有 `$ncm-cli-setup`，在用户同意开始配置后调用；否则直接展示 doctor 的步骤。
+- `configuration_required`：给出返回的网易云开放平台申请地址和缺失字段。让用户在自己的终端设置 AppId 和 PrivateKey；不得要求用户把 PrivateKey 粘贴到聊天、日志或可提交文件中。
+- `login_required`：引导运行 `ncm-cli login --background`，按终端提示完成登录，再用 `ncm-cli login --check` 检查。
+- `unavailable`：报告 ncm-cli 无法执行，检查 PATH、版本和安装状态；不要反复重试同一失败命令。
+
+安装、写入配置和登录都会改变本机状态；先说明将执行的操作并获得用户同意，或让用户自行在终端执行。当前 skill 不使用播放功能，因此不要安装 mpv 或设置播放器。用户完成步骤后重新运行 `W doctor`；只有 `ready: true` 才继续网易云搜索和写入。如果仍失败，保留当前批次并报告状态与下一步。
 
 ## 匹配
 

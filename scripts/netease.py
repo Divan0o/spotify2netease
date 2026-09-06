@@ -2,6 +2,7 @@
 from __future__ import annotations
 import fcntl
 import json
+import shutil
 import subprocess
 from contextlib import contextmanager
 from store import norm, people, title_key, now
@@ -9,6 +10,87 @@ from store import norm, people, title_key, now
 
 class NcmError(RuntimeError):
     pass
+
+
+def setup_status(which=None, runner=None, client=None):
+    """Return a non-secret readiness report for the ncm-cli save workflow."""
+    which = which or shutil.which
+    runner = runner or subprocess.run
+    executable = which('ncm-cli')
+    if not executable:
+        return {
+            'ready': False,
+            'status': 'missing',
+            'reason': 'ncm-cli is not installed or is not available on PATH',
+            'requirements': ['Node.js 18 or newer'],
+            'commands': ['npm install -g @music163/ncm-cli', 'ncm-cli --version'],
+        }
+
+    try:
+        version_result = runner(
+            [executable, '--version'], capture_output=True, text=True,
+            encoding='utf-8', timeout=10, shell=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return {
+            'ready': False,
+            'status': 'unavailable',
+            'reason': 'ncm-cli could not be executed',
+            'commands': ['ncm-cli --version'],
+        }
+    if version_result.returncode:
+        return {
+            'ready': False,
+            'status': 'unavailable',
+            'reason': 'ncm-cli version check failed',
+            'commands': ['ncm-cli --version'],
+        }
+    version = version_result.stdout.strip().splitlines()[0][:100] if version_result.stdout.strip() else None
+
+    missing = []
+    for key in ('appId', 'privateKey'):
+        try:
+            probe = runner(
+                [executable, 'config', 'get', key], stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, timeout=10, shell=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            probe = None
+        if probe is None or probe.returncode:
+            missing.append(key)
+    if missing:
+        return {
+            'ready': False,
+            'status': 'configuration_required',
+            'version': version,
+            'missing': missing,
+            'reason': 'ncm-cli API credentials are incomplete',
+            'application_url': 'https://developer.music.163.com/st/developer/apply/account?type=INDIVIDUAL',
+            'commands': [
+                'ncm-cli config set appId <your-app-id>',
+                'ncm-cli config set privateKey <your-private-key>',
+            ],
+        }
+
+    client = client or Client()
+    try:
+        user = client.call('user', 'info')
+    except NcmError:
+        user = None
+    if not isinstance(user, dict) or not user.get('id'):
+        return {
+            'ready': False,
+            'status': 'login_required',
+            'version': version,
+            'reason': 'ncm-cli is configured but no usable NetEase login was detected',
+            'commands': ['ncm-cli login --background', 'ncm-cli login --check'],
+        }
+    return {
+        'ready': True,
+        'status': 'ready',
+        'version': version,
+        'reason': 'ncm-cli is installed, configured, and logged in',
+    }
 
 
 class Client:

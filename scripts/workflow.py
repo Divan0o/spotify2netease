@@ -13,6 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=DEFAULT_ROOT)
     sub = parser.add_subparsers(dest='command', required=True)
+    sub.add_parser('doctor', help='Read-only ncm-cli installation, credential, and login check')
     p = sub.add_parser('new')
     p.add_argument('--genre', required=True)
     p.add_argument('--count', type=int, required=True)
@@ -41,9 +42,11 @@ def main():
             p.add_argument('--reason', required=True)
     sub.add_parser('batches')
     args = parser.parse_args()
-    store = Store(args.root)
     c = args.command
-    if c == 'new':
+    store = None if c == 'doctor' else Store(args.root)
+    if c == 'doctor':
+        result = netease.setup_status()
+    elif c == 'new':
         result = {'batch_id': store.new(args.genre, args.count, args.mode, args.test, args.name)}
     elif c == 'plan':
         result = plan(store, args.batch, args.genre)

@@ -3,6 +3,7 @@
 以下 `W` 表示 `python3 <skill-dir>/scripts/workflow.py`，其中 `<skill-dir>` 是本技能的安装目录；`W` 不是实际命令名。所有全局 `--root` 放在子命令前。输入 JSON 使用已有文件或工具安全写入的文件重定向，不将歌曲文本拼进 shell 代码。
 
 ```text
+W doctor
 W new --genre "baile funk" --count 10
 W plan --genre "baile funk"
 W plan --batch ID
@@ -19,6 +20,8 @@ W prepare --batch ID
 W export --batch ID
 W render --batch ID
 ```
+
+`doctor` 是无状态、只读预检，不创建状态目录或批次；它检查 ncm-cli 可执行文件、AppId、PrivateKey 和网易云登录。保存任务开始前以及用户完成配置后调用；状态不是 ready 时按[保存前预检](netease-save.md#保存前预检)引导，不进入搜索或写入。
 
 `new` 默认 `--mode recommend`；只有用户明确要求网易云存满数量才用 `--mode save`。用户只要推荐时不调用 search/export。测试先用 mktemp -d 建立独立目录，再 `W --root 该目录 new --genre ... --count ... --test`；export 对测试批次拒绝写入。
 

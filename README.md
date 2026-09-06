@@ -8,6 +8,7 @@
 - 逐曲审查风格与艺人身份，避免只按标题误判
 - 使用 SQLite 保存批次、候选、去重历史和恢复状态
 - 将选中曲目匹配到网易云音乐并创建歌单
+- 保存前检测 `ncm-cli`、API 凭据和登录状态，并在未就绪时引导配置
 - 支持中断恢复、写入后对账和隔离测试
 
 ## 安装
@@ -30,8 +31,20 @@ git clone https://github.com/Divan0o/spotify2netease.git ~/.codex/skills/spotify
 
 - Python 3
 - 已安装并配置可用的 Spotify 插件
-- 已安装、登录并可正常使用 `ncm-cli`
+- 保存到网易云需要 Node.js 18+ 和 `ncm-cli`；未安装或未配置时 skill 会给出引导
 - macOS 或 Linux（保存流程使用文件锁）
+
+## ncm-cli 配置引导
+
+需要保存时，skill 会先运行只读预检：
+
+```bash
+python3 scripts/workflow.py doctor
+```
+
+预检会区分 `missing`、`configuration_required`、`login_required`、`unavailable` 和 `ready`。未就绪时，skill 会根据状态引导安装、申请并设置 AppId/PrivateKey，或完成网易云登录；配置值和账户 ID 不会写入预检结果。
+
+PrivateKey 应由用户在自己的终端中设置，不要粘贴到聊天、日志或仓库。配置完成后再次运行 doctor，只有返回 `"ready": true` 才会继续网易云搜索和歌单写入。本 skill 不使用播放功能，因此无需安装 mpv。
 
 ## 使用
 

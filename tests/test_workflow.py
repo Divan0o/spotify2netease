@@ -1,6 +1,7 @@
 """Offline regression suite. Never invokes a real Spotify or NetEase write."""
 import copy
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -26,6 +27,14 @@ def reviews(entities):
     return [dict(uri=e['uri'], status='accepted', basis='Synthetic test fixture only',
                  evidence=[dict(kind='knowledge', scope='track', certainty='known',
                                 claim='Synthetic genre evidence for offline testing')]) for e in entities]
+
+
+def setup_runner(missing=()):
+    def run(args, **kwargs):
+        if args[-1] == '--version':
+            return subprocess.CompletedProcess(args, 0, stdout='0.1.7\n', stderr='')
+        return subprocess.CompletedProcess(args, int(args[-1] in missing), stdout='', stderr='')
+    return run
 
 
 class FakeClient:
@@ -88,6 +97,51 @@ class WorkflowTests(unittest.TestCase):
         self.store.select(bid, [e['uri'] for e in es])
         netease.search(self.store, bid, client)
         return bid, es, client
+
+    def test_setup_status_reports_missing_ncm_cli(self):
+        status = netease.setup_status(which=lambda _: None)
+        self.assertFalse(status['ready'])
+        self.assertEqual(status['status'], 'missing')
+        self.assertTrue(any('npm install' in command for command in status['commands']))
+
+    def test_setup_status_reports_missing_credentials_without_login_call(self):
+        class UnexpectedClient:
+            def call(self, *args):
+                raise AssertionError(args)
+
+        status = netease.setup_status(
+            which=lambda _: '/bin/ncm-cli',
+            runner=setup_runner({'privateKey'}),
+            client=UnexpectedClient(),
+        )
+        self.assertFalse(status['ready'])
+        self.assertEqual(status['status'], 'configuration_required')
+        self.assertEqual(status['missing'], ['privateKey'])
+        self.assertIn('application_url', status)
+
+    def test_setup_status_reports_login_required(self):
+        class LoggedOutClient:
+            def call(self, *args):
+                raise netease.NcmError('synthetic login failure')
+
+        status = netease.setup_status(
+            which=lambda _: '/bin/ncm-cli',
+            runner=setup_runner(),
+            client=LoggedOutClient(),
+        )
+        self.assertFalse(status['ready'])
+        self.assertEqual(status['status'], 'login_required')
+        self.assertTrue(any('login' in command for command in status['commands']))
+
+    def test_setup_status_ready_does_not_expose_account_id(self):
+        status = netease.setup_status(
+            which=lambda _: '/bin/ncm-cli',
+            runner=setup_runner(),
+            client=FakeClient([]),
+        )
+        self.assertTrue(status['ready'])
+        self.assertEqual(status['status'], 'ready')
+        self.assertNotIn('account_id', status)
 
     def test_ten_track_end_to_end_and_reversed_readback(self):
         bid, es, client = self.ready()
