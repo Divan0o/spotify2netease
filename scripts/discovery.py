@@ -3,6 +3,24 @@ import math
 from store import norm, duplicate
 
 
+def unproductive_reason(store, state, batch, query):
+    """Explain why another identical search has no useful candidate to add."""
+    if not query['track_count']:
+        return 'no_tracks'
+    items = [batch['candidates'][u] for u in query['new_uris']]
+    if not items:
+        return 'no_new_tracks'
+    if all((c.get('assessment') or {}).get('status') == 'rejected' for c in items):
+        return 'all_rejected'
+    if all(store.conflicts(state, c['track'], batch['id']) for c in items):
+        return 'all_reserved'
+    if all(not c['identity_ok'] or
+           (c.get('assessment') or {}).get('status') in ('uncertain', 'rejected') or
+           store.conflicts(state, c['track'], batch['id']) for c in items):
+        return 'no_usable_candidates'
+    return None
+
+
 def cached_candidates(store, state, genre, batch=None):
     """Latest usable, unreserved Spotify entities; no automatic genre acceptance."""
     seen, found = set(), []
@@ -64,14 +82,16 @@ def plan(store, bid=None, genre=None):
         s['evidence_tracks'] = list(s['evidence_tracks'].values())[:2]
         s['prior_direct_queries'] = s['prior_direct_queries'][-2:]
     cached = cached_candidates(store, state, genre, batch)
-    failed = []
+    failed, avoid = [], []
     for b in state['batches'].values():
         if b.get('test') or b['status'] == 'abandoned' or norm(b['genre']) != norm(genre):
             continue
         for q in b['queries']:
-            assessments = [(b['candidates'][u].get('assessment') or {}).get('status') for u in q['new_uris']]
-            if (q['returned'] and not q['track_count']) or (assessments and all(a == 'rejected' for a in assessments)):
-                failed.append(dict(query=q['query'], reason='no_tracks' if not q['track_count'] else 'all_rejected'))
+            reason = unproductive_reason(store, state, b, q)
+            if reason:
+                failed.append(dict(query=q['query'], reason=reason))
+                if b['id'] == bid:
+                    avoid.append(q['query'])
     result = dict(genre=genre, seeds=ranked[:8], cached_candidates=cached[:12],
                   prior_unproductive_queries=failed[-8:],
                   entry_route='reuse_cache' if cached else 'artist_track_suffix' if ranked else 'genre_track_suffix',
@@ -89,7 +109,7 @@ def plan(store, bid=None, genre=None):
     selected_ids = {batch['matching'].get(u, {}).get('id') for u in batch['selected']}
     candidates = sorted(batch['candidates'].values(), key=lambda c: (
         (c.get('assessment') or {}).get('status') != 'accepted', primary(c['track']) not in seeds))
-    ready, review, parked = [], [], 0
+    ready, review, review_tracks, parked = [], [], [], 0
     window = min(remaining + 2, 12)
     for c in candidates:
         t, a = c['track'], c.get('assessment') or {}
@@ -98,7 +118,7 @@ def plan(store, bid=None, genre=None):
         if not c['identity_ok'] or a.get('status') in ('uncertain', 'rejected'):
             parked += 1
             continue
-        if store.conflicts(state, t, bid) or any(duplicate(t, p) for p in picked):
+        if store.conflicts(state, t, bid) or any(duplicate(t, p) for p in picked + review_tracks):
             continue
         key = primary(t)
         if counts.get(key, 0) >= cap and not batch.get('diversity_reason'):
@@ -107,6 +127,7 @@ def plan(store, bid=None, genre=None):
             m = batch['matching'].get(t['uri'], {})
             if batch['mode'] == 'save' and (m.get('status') != 'matched' or m.get('id') in selected_ids):
                 review.append(dict(track=t, next='match'))
+                review_tracks.append(t)
                 continue
             ready.append(t['uri'])
             picked.append(t)
@@ -114,6 +135,7 @@ def plan(store, bid=None, genre=None):
             selected_ids.add(m.get('id'))
         elif not a and len(review) < window:
             review.append(dict(track=t, next='assess'))
+            review_tracks.append(t)
     if batch['status'] == 'abandoned':
         action = 'abandoned'
     elif not remaining:
@@ -125,6 +147,5 @@ def plan(store, bid=None, genre=None):
                   spotify_calls=len(batch['queries']),
                   cached_candidates=cached[:window] if remaining and batch['status'] != 'abandoned' else [],
                   ncm_search_calls=sum(len(m.get('searches', [])) for m in batch['matching'].values()),
-                  avoid_queries=[q['query'] for q in batch['queries']
-                                 if not q['track_count'] or not q['new_uris']][-8:])
+                  avoid_queries=list(dict.fromkeys(avoid))[-8:])
     return result

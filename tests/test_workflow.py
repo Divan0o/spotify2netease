@@ -536,6 +536,54 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(p['entry_route'], 'genre_track_suffix')
         self.assertEqual(plan(self.store, genre='other')['prior_unproductive_queries'], [])
 
+    def test_plan_changes_query_when_all_new_uris_are_reserved_recordings(self):
+        source, es = self.batch(1)
+        self.store.select(source, [es[0]['uri']])
+        target = self.store.new('fixture genre', 10)
+        alternate = copy.deepcopy(es[0])
+        alternate['uri'] = 'spotify:track:alternate-release'
+        self.store.ingest(target, dict(entities=[alternate]), 'genre {track}')
+        before = self.store.read()
+        p = plan(self.store, target)
+        self.assertEqual(p['action'], 'discover')
+        self.assertEqual(p['remaining'], 10)
+        self.assertEqual(p['review'], [])
+        self.assertIn('genre {track}', p['avoid_queries'])
+        self.assertIn(dict(query='genre {track}', reason='all_reserved'),
+                      plan(self.store, genre='fixture genre')['prior_unproductive_queries'])
+        self.assertEqual(self.store.read(), before)
+
+    def test_plan_keeps_new_candidate_from_mixed_history_response(self):
+        source, es = self.batch(1)
+        self.store.select(source, [es[0]['uri']])
+        target = self.store.new('fixture genre', 10)
+        fresh = entity(10)
+        self.store.ingest(target, dict(entities=[es[0], fresh]), 'mixed {track}')
+        p = plan(self.store, target)
+        self.assertEqual(p['action'], 'review')
+        self.assertEqual([c['track']['uri'] for c in p['review']], [fresh['uri']])
+        self.assertNotIn('mixed {track}', p['avoid_queries'])
+        self.store.assess(target, [dict(uri=fresh['uri'], status='uncertain', basis='No track evidence')])
+        p = plan(self.store, target)
+        self.assertEqual(p['action'], 'discover')
+        self.assertIn('mixed {track}', p['avoid_queries'])
+        # New evidence can make the branch useful again; this is not a permanent ban.
+        self.store.assess(target, reviews([fresh]))
+        self.assertEqual(plan(self.store, target)['select_uris'], [fresh['uri']])
+        self.assertNotIn('mixed {track}', plan(self.store, target)['avoid_queries'])
+
+    def test_review_window_deduplicates_recordings_but_keeps_remixes(self):
+        target = self.store.new('fixture genre', 10)
+        original = entity(0)
+        alternate = copy.deepcopy(original)
+        alternate['uri'] = 'spotify:track:alternate-release'
+        remix = copy.deepcopy(original)
+        remix.update(uri='spotify:track:remix', name=original['name'] + ' - Remix')
+        self.store.ingest(target, dict(entities=[original, alternate, remix]), 'artist {track}')
+        p = plan(self.store, target)
+        self.assertEqual([c['track']['uri'] for c in p['review']], [original['uri'], remix['uri']])
+        self.assertEqual(len(self.store.pool(target)), 3)
+
     def test_legacy_migration_once_preserves_original(self):
         with tempfile.TemporaryDirectory() as root:
             p = Path(root) / 'recommended.json'

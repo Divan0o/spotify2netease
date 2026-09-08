@@ -33,7 +33,11 @@ W render --batch ID
 
 `plan --genre` 只读已有批次，返回同风格未推荐缓存、最多8个已验证主艺人线索及历史低产查询，不产生网络请求或推荐预留。`plan --batch` 另外给出缺额、可选URI、有限待审窗口及下一步select/review/reuse/discover/save_or_deliver；只是提示，不自动放宽证据或去重。未带artist-uri的旧查询仍须看原query，不能据此判为从未查过。
 
-`entry_route` 有可用缓存时为 `reuse_cache`；无缓存但有已验证艺人线索时为 `artist_track_suffix`，建议 `艺人名 {track}`；没有艺人线索时为 `genre_track_suffix`，使用 `风格 {track}` 冷启动。风格后缀始终是允许的发现方式，标题匹配照常入池，`title_hits` 不作为自动拒绝条件。该字段只提示需要发现时的检索方式；有批次时先执行 `action` 指定的审查、选中或交付步骤。指定作品可直接精确查找，经审查无有效产出的分支再回退。首轮模板和工具契约边界见[首轮检索规则](genre-review.md#首轮检索规则)。
+`prior_unproductive_queries` 及当前批次 `avoid_queries` 会识别无单曲（`no_tracks`）、无新URI（`no_new_tracks`）、全否决（`all_rejected`）、新URI却全为已预留录音（`all_reserved`），以及重复／身份错误／不确定项混合后无可用候选（`no_usable_candidates`）。这些是根据当前历史和评估计算的换路提示，不是永久封禁；新证据或释放预留后会重新判断。混合响应中仍有未审新录音时继续审查，不因部分重复而丢弃整次返回。
+
+`review` 窗口先排除历史冲突，并合并同录音的跨发行副本，避免为同一录音重复查网页；候选原数据仍保留，Remix 等不同版本分别评估。`remaining == 0` 且 `action == save_or_deliver` 才表示发现阶段完成，保存数仍以真实读回的 ID 集合为准。
+
+`entry_route` 有可用缓存时为 `reuse_cache`；无缓存但有已验证艺人线索时为 `artist_track_suffix`，建议 `艺人名 {track}`；没有艺人线索时为 `genre_track_suffix`，使用 `风格 {track}` 冷启动。风格后缀始终是允许的发现方式，标题匹配照常入池，`title_hits` 不作为自动拒绝条件。该字段只提示需要发现时的检索方式；有批次时先执行 `action` 指定的审查、选中或交付步骤。指定作品可直接精确查找，经审查无有效产出的分支再回退。由模型选择下一条线索，无需用户逐条复述；首轮模板与工具能力不足时的处理见[首轮检索规则](genre-review.md#首轮检索规则)。
 
 `reuse`输入 `{"uris":["plan返回的真实URI"]}`，按source_batch分组调用；事务内重新排除推荐历史、possible冲突、不同风格、测试／取消源、身份错配和uncertain/rejected候选。只复制曲目、评估与来源链，不复制网易云匹配、不占Spotify调用、不预留历史；之后用plan/assess/select继续。此操作不是重新联网获取，不能把缓存描述为本次新检索。缓存已足够时无需为了“用插件”再做无效网络请求。
 
